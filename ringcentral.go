@@ -48,8 +48,9 @@ const (
 
 // Directions
 const (
-	Outbound Direction = "Outbound"
-	Inbound  Direction = "Inbound"
+	Outbound     Direction = "Outbound"
+	Inbound      Direction = "Inbound"
+	AnyDirection Direction = "Inbound|Outbound"
 )
 
 // Types
@@ -351,6 +352,11 @@ func (a *API) makeURL(urlStr string, params url.Values) string {
 	return urlStr + "?" + enc
 }
 
+// Authorized returns true if there's a valid token for the API
+func (a *API) Authorized(ctx context.Context) bool {
+	return a.Token != nil && a.Token.Expires.After(time.Now())
+}
+
 func (a *API) Authorize(ctx context.Context, username, ext, pwd string) (*Token, error) {
 	var t Token
 	form := url.Values{}
@@ -452,8 +458,8 @@ func (a *API) Post(ctx context.Context, urlStr string, data, dstVal interface{})
 	return a.doRequest(ctx, req, dstVal)
 }
 
-func (a *API) Get(ctx context.Context, urlStr string, dstVal interface{}) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodGet, a.makeURL(urlStr, nil), nil)
+func (a *API) Get(ctx context.Context, urlStr string, params url.Values, dstVal interface{}) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, a.makeURL(urlStr, params), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -476,15 +482,24 @@ type ErrorResponse struct {
 }
 
 func (e ErrorResponse) Error() string {
-	return fmt.Sprintf("[RingCentral API error] %s: %s", e.ErrorCode, e.Message)
+	return fmt.Sprintf("[RingCentral API error] %s: %s %s", e.ErrorCode, e.Message, e.Description)
 }
 
 func (a *API) GetExtensionList(ctx context.Context, params url.Values) (*ExtensionList, error) {
 	var e ExtensionList
-	if _, err := a.Get(ctx, fmt.Sprintf("/restapi/v1.0/account/%s/extension", a.AccountID), &e); err != nil {
+	if _, err := a.Get(ctx, fmt.Sprintf("/restapi/v1.0/account/%s/extension", a.AccountID), params, &e); err != nil {
 		return nil, err
 	}
 	return &e, nil
+}
+
+func (a *API) ActiveCalls(ctx context.Context, ext int64, params url.Values) (*ExtensionActiveCalls, error) {
+	urlStr := fmt.Sprintf("/restapi/v1.0/account/%s/extension/%d/active-calls", a.AccountID, ext)
+	var active *ExtensionActiveCalls
+	if _, err := a.Get(ctx, urlStr, params, &active); err != nil {
+		return nil, err
+	}
+	return active, nil
 }
 
 func New(appID, appSecret, accountID string) *API {

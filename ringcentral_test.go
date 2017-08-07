@@ -2,6 +2,7 @@ package ringcentral
 
 import (
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,12 +18,16 @@ var (
 
 func init() {
 	a = New(os.Getenv("RINGCENTRAL_APP_ID"), os.Getenv("RINGCENTRAL_APP_SECRET"), "~")
-	a.TestMode = true
+	a.TestMode, _ = strconv.ParseBool(os.Getenv("RINGCENTRAL_TEST_MODE"))
 }
 
 func TestMakeURL(t *testing.T) {
 	urlStr := a.makeURL("/foo/bar", nil)
-	assert.Equal(t, "https://platform.devtest.ringcentral.com/foo/bar", urlStr)
+	if a.TestMode {
+		assert.Equal(t, "https://platform.devtest.ringcentral.com/foo/bar", urlStr)
+	} else {
+		assert.Equal(t, "https://platform.ringcentral.com/foo/bar", urlStr)
+	}
 }
 
 // TestAuthorizeUsername should run first to get a valid auth token.
@@ -58,4 +63,27 @@ func TestGetExtensionList(t *testing.T) {
 		return
 	}
 	assert.True(t, len(l.Records) > 0)
+}
+
+func TestGetExtensionActiveCalls(t *testing.T) {
+
+	l, err := a.GetExtensionList(ctx, nil)
+	if !assert.NoError(t, err) || len(l.Records) < 1 {
+		t.Fail()
+		return
+	}
+
+	// Test the first returned extension
+	active, err := a.ActiveCalls(ctx, l.Records[0].ID, nil)
+	if !assert.NoError(t, err) {
+		return
+	}
+	if len(active.Records) < 1 {
+		t.Logf("No active calls for ext %s", l.Records[0].ExtensionNumber)
+		return
+	}
+	for i := range active.Records {
+		t.Logf("Active: %s %+v", active.Records[i])
+	}
+	return
 }
