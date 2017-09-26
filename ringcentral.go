@@ -24,7 +24,9 @@ var (
 )
 
 const (
-	Endpoint     = "https://platform.ringcentral.com"
+	// Endpoint is the production RingCentral endpoint
+	Endpoint = "https://platform.ringcentral.com"
+	// EndpointTest is the RingCentral dev endpoint
 	EndpointTest = "https://platform.devtest.ringcentral.com"
 	userAgent    = "GoRingCentral/0.1 (github.com/bradberger/ringcentral)"
 )
@@ -34,8 +36,11 @@ type CallResult string
 type Direction string
 type Type string
 type RecordingType string
+
+// Transport is a transport type string
 type Transport string
 
+// Transport type definitions
 const (
 	TransportPSTN Transport = "PSTN"
 	TransportVoIP Transport = "VoIP"
@@ -316,6 +321,7 @@ type CallLogRecord struct {
 	Legs             []LegInfo            `json:"legs"`
 }
 
+// Token is an OAuth2 token
 type Token struct {
 	AccessToken           string `json:"access_token"`
 	TokenType             string `json:"token_type"`
@@ -383,6 +389,7 @@ func (a *API) Authorize(ctx context.Context, username, ext, pwd string) (*Token,
 	return &t, nil
 }
 
+// PostForm sends a POST request to urlStr with an application/x-www-form-urlencoded body of form, marshaling the response into dstVal
 func (a *API) PostForm(ctx context.Context, urlStr string, form url.Values, dstVal interface{}) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodPost, a.makeURL(urlStr, nil), strings.NewReader(form.Encode()))
 	if err != nil {
@@ -467,7 +474,7 @@ func (a *API) doRequest(ctx context.Context, req *http.Request, dstVal interface
 func (a *API) Post(ctx context.Context, urlStr string, data, dstVal interface{}) (*http.Response, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(data); err != nil {
-		return nil, fmt.Errorf("Could not encode data: %v")
+		return nil, fmt.Errorf("Could not encode data: %v", err)
 	}
 	req, err := http.NewRequest(http.MethodPost, a.makeURL(urlStr, nil), &buf)
 	if err != nil {
@@ -477,10 +484,11 @@ func (a *API) Post(ctx context.Context, urlStr string, data, dstVal interface{})
 	return a.doRequest(ctx, req, dstVal)
 }
 
+// Put sends a JSON encoded PUT request to urlStr and marshals the response into dstVal
 func (a *API) Put(ctx context.Context, urlStr string, data, dstVal interface{}) (*http.Response, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(data); err != nil {
-		return nil, fmt.Errorf("Could not encode data: %v")
+		return nil, fmt.Errorf("Could not encode data: %v", err)
 	}
 	req, err := http.NewRequest(http.MethodPut, a.makeURL(urlStr, nil), &buf)
 	if err != nil {
@@ -490,6 +498,7 @@ func (a *API) Put(ctx context.Context, urlStr string, data, dstVal interface{}) 
 	return a.doRequest(ctx, req, dstVal)
 }
 
+// Get sends a GET request to the given urlStr, with optional query string defined in params
 func (a *API) Get(ctx context.Context, urlStr string, params url.Values, dstVal interface{}) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodGet, a.makeURL(urlStr, params), nil)
 	if err != nil {
@@ -498,6 +507,7 @@ func (a *API) Get(ctx context.Context, urlStr string, params url.Values, dstVal 
 	return a.doRequest(ctx, req, dstVal)
 }
 
+// Delete sends a DELETE request to the given urlStr
 func (a *API) Delete(ctx context.Context, urlStr string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodDelete, a.makeURL(urlStr, nil), nil)
 	if err != nil {
@@ -525,6 +535,7 @@ func (e ErrorResponse) Error() string {
 	return fmt.Sprintf("[RingCentral API error] %s: %s %s", e.ErrorCode, e.Message, e.Description)
 }
 
+// GetExtensionList returns a list of all account extensions
 func (a *API) GetExtensionList(ctx context.Context, params url.Values) (*ExtensionList, error) {
 	var e ExtensionList
 	if _, err := a.Get(ctx, fmt.Sprintf("/restapi/v1.0/account/%s/extension", a.AccountID), params, &e); err != nil {
@@ -533,6 +544,7 @@ func (a *API) GetExtensionList(ctx context.Context, params url.Values) (*Extensi
 	return &e, nil
 }
 
+// ActiveCalls returns a list of active calls on the given extension
 func (a *API) ActiveCalls(ctx context.Context, ext int64, params url.Values) (*ExtensionActiveCalls, error) {
 	urlStr := fmt.Sprintf("/restapi/v1.0/account/%s/extension/%d/active-calls", a.AccountID, ext)
 	var active *ExtensionActiveCalls
@@ -556,6 +568,7 @@ func (a *API) LastResponse() *http.Response {
 	return a.lastResponse
 }
 
+// New creates a new API client
 func New(appID, appSecret, accountID string) *API {
 	if accountID == "" {
 		accountID = "~"

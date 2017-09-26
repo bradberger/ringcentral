@@ -96,9 +96,10 @@ const (
 	DNDStatusTakeDepartmentCallsOnly    DNDStatus = "TakeDepartmentCallsOnly"
 )
 
+// PresenceEvent see https://developer.ringcentral.com/api-docs/latest/index.html#!#PresenceEvent
 type PresenceEvent struct {
-	ExtensionID         string          `json"extensionId"`
-	TelephonyStatus     TelephonyStatus `json:telephonyStatus"`
+	ExtensionID         string          `json:"extensionId"`
+	TelephonyStatus     TelephonyStatus `json:"telephonyStatus"`
 	TerminationType     TerminationType `json:"terminationType"`
 	Sequence            int             `json:"sequence"`
 	PresenceStatus      PresenceStatus  `json:"presenceStatus"`
@@ -109,9 +110,10 @@ type PresenceEvent struct {
 	PickUpCallsOnHold   bool            `json:"pickUpCallsOnHold"`
 }
 
+// DetailedPresenceEvent see https://developer.ringcentral.com/api-docs/latest/index.html#!#DetailedPresenceEvent
 type DetailedPresenceEvent struct {
-	ExtensionID         string          `json"extensionId"`
-	TelephonyStatus     TelephonyStatus `json:telephonyStatus"`
+	ExtensionID         string          `json:"extensionId"`
+	TelephonyStatus     TelephonyStatus `json:"telephonyStatus"`
 	TerminationType     TerminationType `json:"terminationType"`
 	Sequence            int             `json:"sequence"`
 	PresenceStatus      PresenceStatus  `json:"presenceStatus"`
@@ -123,6 +125,7 @@ type DetailedPresenceEvent struct {
 	ActiveCalls         []ActiveCall    `json:"activeCalls"`
 }
 
+// ExtensionPresenceEvent see https://developer.ringcentral.com/api-docs/latest/index.html#!#RefGetExtensionPresenceEvent
 type ExtensionPresenceEvent struct {
 	UUID           string        `json:"uuid"`
 	Event          string        `json:"event"`
@@ -131,7 +134,13 @@ type ExtensionPresenceEvent struct {
 	Body           PresenceEvent `json:"body"`
 }
 
+// DetailedExtensionPresenceEvent see https://developer.ringcentral.com/api-docs/latest/index.html#!#RefGetDetailedExtensionPresenceEvent
 type DetailedExtensionPresenceEvent struct {
+	UUID           string                `json:"uuid"`
+	Event          string                `json:"event"`
+	SubscriptionID string                `json:"subscriptionId"`
+	Timestamp      time.Time             `json:"timestamp"`
+	Body           DetailedPresenceEvent `json:"body"`
 }
 
 type ExtensionPresenceLineEvent struct {
