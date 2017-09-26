@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/context"
@@ -175,6 +176,10 @@ type API struct {
 	Timeout                     time.Duration
 	Token                       *Token
 	AccountID, AppID, AppSecret string
+
+	lastRequest  *http.Request
+	lastResponse *http.Response
+	sync.RWMutex
 }
 
 type Response struct {
@@ -296,7 +301,7 @@ type CallLogRecord struct {
 	ID               string               `json:"id"`
 	URI              string               `json:"uri"`
 	SessionID        string               `json:"sessionId"`
-	From             CallerInfo           `json:"callerInfo"`
+	From             CallerInfo           `json:"from"`
 	To               CallerInfo           `json:"to"`
 	Message          VoicemailMessageInfo `json:"message"`
 	Type             Type                 `json:"type"`
@@ -409,6 +414,12 @@ func (a *API) doRequest(ctx context.Context, req *http.Request, dstVal interface
 	client := a.getClient(ctx)
 	resp, err := client.Do(req)
 
+	// Set last request, response now. Keep locked for thread-safe access
+	a.Lock()
+	defer a.Unlock()
+	a.lastRequest = req
+	a.lastResponse = resp
+
 	switch {
 	case err != nil:
 		return resp, err
@@ -420,6 +431,9 @@ func (a *API) doRequest(ctx context.Context, req *http.Request, dstVal interface
 		if len(bodyBytes) < 1 {
 			return resp, fmt.Errorf("ringcentral: api error: %s", resp.Status)
 		}
+		// Reset the body so it can be read again (debugging, etc.)
+		resp.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+
 		// If can convert to an API error, then do so and return the message/description
 		var e ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &e); err == nil {
@@ -435,6 +449,9 @@ func (a *API) doRequest(ctx context.Context, req *http.Request, dstVal interface
 		if err != nil {
 			return resp, fmt.Errorf("ringcentral: error reading response body: %v", err)
 		}
+		// Reset the body so it can be read again (debugging, etc.)
+		resp.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+		// Unmarshal the body
 		if err := json.Unmarshal(bodyBytes, dstVal); err != nil {
 			return resp, fmt.Errorf("ringcentral: error decoding response: %v (response was: %s)", err, string(bodyBytes))
 		}
@@ -446,6 +463,7 @@ func (a *API) doRequest(ctx context.Context, req *http.Request, dstVal interface
 	}
 }
 
+// Post sends JSON encoded data to urlStr and marshals the response into dstVal
 func (a *API) Post(ctx context.Context, urlStr string, data, dstVal interface{}) (*http.Response, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(data); err != nil {
@@ -455,6 +473,20 @@ func (a *API) Post(ctx context.Context, urlStr string, data, dstVal interface{})
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
+	return a.doRequest(ctx, req, dstVal)
+}
+
+func (a *API) Put(ctx context.Context, urlStr string, data, dstVal interface{}) (*http.Response, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(data); err != nil {
+		return nil, fmt.Errorf("Could not encode data: %v")
+	}
+	req, err := http.NewRequest(http.MethodPut, a.makeURL(urlStr, nil), &buf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
 	return a.doRequest(ctx, req, dstVal)
 }
 
@@ -464,6 +496,14 @@ func (a *API) Get(ctx context.Context, urlStr string, params url.Values, dstVal 
 		return nil, err
 	}
 	return a.doRequest(ctx, req, dstVal)
+}
+
+func (a *API) Delete(ctx context.Context, urlStr string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodDelete, a.makeURL(urlStr, nil), nil)
+	if err != nil {
+		return nil, err
+	}
+	return a.doRequest(ctx, req, nil)
 }
 
 type Error struct {
@@ -500,6 +540,20 @@ func (a *API) ActiveCalls(ctx context.Context, ext int64, params url.Values) (*E
 		return nil, err
 	}
 	return active, nil
+}
+
+// LastRequest returns the last HTTP request sent via the API client. Use it for debugging.
+func (a *API) LastRequest() *http.Request {
+	a.RLock()
+	defer a.RUnlock()
+	return a.lastRequest
+}
+
+// LastResponse returns the last HTTP response recieved via the API client. Use it for debugging.
+func (a *API) LastResponse() *http.Response {
+	a.RLock()
+	defer a.RUnlock()
+	return a.lastResponse
 }
 
 func New(appID, appSecret, accountID string) *API {
